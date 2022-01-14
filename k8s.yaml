@@ -82,7 +82,7 @@ metadata:
     # Specify the verification depth in the client certificates chain
     nginx.ingress.kubernetes.io/auth-tls-verify-depth: "1"
     # Specify an error page to be redirected to verification errors
-    nginx.ingress.kubernetes.io/auth-tls-error-page: "https://www.nadileaf.com/"
+    nginx.ingress.kubernetes.io/auth-tls-error-page: "https://www.your-domain.com/error-page"
     # Specify if certificates are passed to upstream server
     nginx.ingress.kubernetes.io/auth-tls-pass-certificate-to-upstream: "false"
 spec:
