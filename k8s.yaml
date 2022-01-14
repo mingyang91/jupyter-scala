@@ -1,0 +1,105 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: jupyter-scala
+  namespace: <replace-with-your-namespace>
+spec:
+  serviceName: jupyter-scala
+  replicas: 1
+  selector:
+    matchLabels:
+      app: jupyter-scala
+  template:
+    metadata:
+      annotations:
+        sidecar.istio.io/inject: "false" # Maybe you don't need istio for this service
+      labels:
+        app: jupyter-scala
+    spec:
+      securityContext:
+        fsGroup: 1000 # Don't forget to change this to 1000, this is jupyter default user, the jovyan's group.
+      containers:
+        - name: jupyter-scala
+          image: ghcr.io/mingyang91/jupyter-scala:latest
+          imagePullPolicy: IfNotPresent
+          resources:
+            limits:
+              cpu: 2
+              memory: 4Gi
+            requests:
+              cpu: 0.25
+              memory: 512Mi
+          volumeMounts:
+            - name: notebooks
+              mountPath: /home/jovyan/work # This is the default notebook directory
+  volumeClaimTemplates:
+    - metadata:
+        name: notebooks
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: "1Gi" # Rely on your need
+        storageClassName: gp2-wffc
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: jupyter-scala
+  namespace: <replace-with-your-namespace>
+  labels:
+    app: jupyter-scala
+spec:
+  selector:
+    app: jupyter-scala
+  ports:
+    - port: 8888
+      targetPort: 8888
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: jupyter-scala
+  namespace: <replace-with-your-namespace>
+  annotations:
+    ingress.kubernetes.io/ssl-redirect: "true"
+    # HSTS is highly recommended for production
+    ingress.kubernetes.io/force-hsts: "true"
+    ingress.kubernetes.io/hsts-max-age: "315360000"
+    ingress.kubernetes.io/hsts-include-subdomains: "true"
+    ingress.kubernetes.io/hsts-preload: "true"
+    # annotations at the follows can run on nginx ingress
+    # if you use traefik or another ingress controller, you should follow to their document, change the follows to your needs
+    kubernetes.io/ingress.class: nginx 
+    # For production, we recommend you enable two-way TLS authentication, for best security. 
+    # you can follow this document to do it https://kubernetes.github.io/ingress-nginx/examples/auth/client-certs/
+    # For development, you can use http simple authentication, or just use jupyter token.
+    # Enable client certificate authentication
+    nginx.ingress.kubernetes.io/auth-tls-verify-client: "on"
+    # Create the secret containing the trusted ca certificates
+    nginx.ingress.kubernetes.io/auth-tls-secret: "<replace-with-your-namespace>/ca-secret"
+    # Specify the verification depth in the client certificates chain
+    nginx.ingress.kubernetes.io/auth-tls-verify-depth: "1"
+    # Specify an error page to be redirected to verification errors
+    nginx.ingress.kubernetes.io/auth-tls-error-page: "https://www.nadileaf.com/"
+    # Specify if certificates are passed to upstream server
+    nginx.ingress.kubernetes.io/auth-tls-pass-certificate-to-upstream: "false"
+spec:
+  # enable strict https is highly recommended
+  tls:
+  - secretName: your-tls-secret-you-should-edit
+    hosts:
+    - 'jupyter-scala.your-domain.com' # Change this to your domain
+  rules:
+  - host: 'jupyter-scala.your-domain.com' # Change this to your domain
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: jupyter-scala
+            port:
+              number: 8888
+
